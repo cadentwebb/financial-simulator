@@ -207,9 +207,20 @@ T_Bills_std = st.sidebar.slider(
 st.sidebar.subheader("Simulation Settings")
 total_iterations = st.sidebar.selectbox(
     "Iterations per Sequence",
-    options=[100, 500, 1000, 2500, 5000],
-    index=2,
-    help="Number of Monte Carlo iterations to run for each historical sequence"
+    options=[50, 100, 250, 500],
+    index=1,  # Default to 100
+    help="Number of Monte Carlo iterations to run for each historical sequence. Lower = faster, less memory"
+)
+
+# Add memory warning
+if total_iterations >= 500:
+    st.sidebar.warning("⚠️ High iteration counts may cause memory issues on free hosting")
+
+# Memory efficient mode
+memory_efficient = st.sidebar.checkbox(
+    "Memory Efficient Mode",
+    value=True,
+    help="Reduces memory usage by not storing allocation history. Disables allocation over time graphs."
 )
 
 # Initialize session state for portfolios
@@ -323,7 +334,17 @@ for i in range(1, 5):
 
 # Run simulation button
 st.markdown("---")
-run_simulation = st.button("🚀 Run Simulation", type="primary", use_container_width=True)
+col1, col2 = st.columns([3, 1])
+with col1:
+    run_simulation = st.button("🚀 Run Simulation", type="primary", use_container_width=True)
+with col2:
+    if st.button("🗑️ Clear Results", use_container_width=True):
+        if 'simulation_results' in st.session_state:
+            del st.session_state.simulation_results
+            del st.session_state.complete_sequences
+            del st.session_state.contribution_func
+            st.success("Results cleared!")
+            st.rerun()
 
 if run_simulation:
     # Validate all enabled portfolios
@@ -397,6 +418,7 @@ if run_simulation:
             st.session_state.simulation_results = simulation_results
             st.session_state.complete_sequences = complete_sequences
             st.session_state.contribution_func = contribution_func
+            st.session_state.memory_efficient = memory_efficient
             st.success("✓ Simulation complete!")
 
 # Display results if available
@@ -749,8 +771,9 @@ if 'simulation_results' in st.session_state:
             with col5:
                 st.metric("90th %ile", f"${np.percentile(final_values, 90):,.0f}")
     
-    # Asset Allocation Over Time
-    st.markdown("### Asset Allocation Over Time")
+    # Asset Allocation Over Time (skip if memory efficient mode)
+    if not st.session_state.get('memory_efficient', False):
+        st.markdown("### Asset Allocation Over Time")
     st.markdown("**Track how portfolio allocation changes over the 15-year period**")
     
     # Create tabs for each portfolio
@@ -878,6 +901,8 @@ if 'simulation_results' in st.session_state:
                 st.write(f"NASDAQ 100: {nasdaq_allocs[-1]:.1f}%")
                 st.write(f"T-Bills: {tbill_allocs[-1]:.1f}%")
                 st.write(f"HYSA: {hysa_allocs[-1]:.1f}%")
+    else:
+        st.info("ℹ️ Asset Allocation Over Time graphs disabled in Memory Efficient Mode. Uncheck the option in the sidebar to enable.")
     
     # Sequence Analysis - Best and Worst Performing Sequences
     st.markdown("### Historical Sequence Analysis")
